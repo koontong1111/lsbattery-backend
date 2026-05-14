@@ -14,14 +14,8 @@ const { startJobs }     = require('./jobs/scheduler');
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
-// ── CORS ─────────────────────────────────────────────────────────────────────
-app.use(cors({
-  origin: [
-    process.env.FRONTEND_URL || 'http://localhost:5500',
-    'http://127.0.0.1:5500',
-  ],
-  credentials: true,
-}));
+// ── CORS — allow all origins (website is a static HTML file) ─────────────────
+app.use(cors({ origin: '*', credentials: false }));
 
 // ── Raw body for Stripe webhooks (must come BEFORE express.json) ──────────────
 app.use('/api/payments/stripe/webhook',
@@ -33,13 +27,12 @@ app.use(express.json());
 
 // ── Rate limiting ─────────────────────────────────────────────────────────────
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000,
   max: 100,
   message: { error: 'Too many requests, please try again later.' },
 });
 app.use('/api/', limiter);
 
-// Stricter limit on payment endpoints
 const paymentLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
@@ -60,6 +53,25 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// ── RESET ADMIN PASSWORD on startup if ADMIN_PASSWORD env var is set ──────────
+async function resetAdminIfNeeded() {
+  if (!process.env.ADMIN_PASSWORD) return;
+  try {
+    const db = require('../config/db');
+    const bcrypt = require('bcryptjs');
+    const hash = await bcrypt.hash(process.env.ADMIN_PASSWORD, 10);
+    await db.query(
+      `INSERT INTO admin_users (email, password_hash, name)
+       VALUES ($1, $2, 'LS Battery Admin')
+       ON CONFLICT (email) DO UPDATE SET password_hash = $2`,
+      [process.env.ADMIN_EMAIL || 'admin@lsbattery.com.sg', hash]
+    );
+    console.log('✅ Admin user ready:', process.env.ADMIN_EMAIL || 'admin@lsbattery.com.sg');
+  } catch (err) {
+    console.error('Admin reset error:', err.message);
+  }
+}
+
 // ── 404 ───────────────────────────────────────────────────────────────────────
 app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
@@ -72,11 +84,11 @@ app.use((err, req, res, next) => {
 });
 
 // ── START ─────────────────────────────────────────────────────────────────────
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`\n✅ LS Battery backend running on port ${PORT}`);
   console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`   Health check: http://localhost:${PORT}/health\n`);
-  startJobs(); // start background cron jobs
+  await resetAdminIfNeeded();
+  startJobs();
 });
 
 module.exports = app;
