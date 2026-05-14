@@ -2,10 +2,9 @@ require('dotenv').config();
 const twilio    = require('twilio');
 const nodemailer = require('nodemailer');
 
-const twilioClient = twilio(
-  process.env.TWILIO_ACCOUNT_SID,
-  process.env.TWILIO_AUTH_TOKEN
-);
+const twilioClient = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_ACCOUNT_SID !== 'REPLACE_ME'
+  ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
+  : null;
 
 // ── WHATSAPP MESSAGES ─────────────────────────────────────────────────────────
 const WA_TEMPLATES = {
