@@ -34,18 +34,4 @@ router.post('/login', async (req, res) => {
   }
 });
 
-router.get('/reset-admin-temp', async (req, res) => {
-  try {
-    const bcrypt = require('bcryptjs');
-    const hash = await bcrypt.hash('LSBattery2025!', 10);
-    await db.query(
-      'UPDATE admin_users SET password_hash = $1 WHERE email = $2',
-      [hash, 'admin@lsbattery.com.sg']
-    );
-    res.json({ success: true, message: 'Password reset to LSBattery2025!' });
-  } catch(err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 module.exports = router;
